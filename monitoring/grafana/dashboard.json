@@ -1,0 +1,102 @@
+{
+  "title": "Inventario TI — API Metrics",
+  "uid": "inventario-api",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests por segundo",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(http_requests_total[1m]))",
+        "legendFormat": "req/s"
+      }],
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}, "unit": "reqps"}}
+    },
+    {
+      "id": 2,
+      "title": "Latencia promedio (ms)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(http_request_duration_seconds_sum[1m])) / sum(rate(http_request_duration_seconds_count[1m])) * 1000",
+        "legendFormat": "ms"
+      }],
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 200}, {"color": "red", "value": 500}]}, "unit": "ms"}}
+    },
+    {
+      "id": 3,
+      "title": "Total requests (200 OK)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(http_requests_total{status_code=\"200\"})",
+        "legendFormat": "OK"
+      }],
+      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "green", "mode": "fixed"}, "unit": "short"}}
+    },
+    {
+      "id": 4,
+      "title": "Uptime Prometheus",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "prometheus_build_info",
+        "legendFormat": "UP"
+      }],
+      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "green", "mode": "fixed"}, "unit": "short"}}
+    },
+    {
+      "id": 5,
+      "title": "Requests HTTP por endpoint (últimos 5 min)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum by (handler) (rate(http_requests_total[1m]))",
+        "legendFormat": "{{handler}}"
+      }],
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2, "fillOpacity": 10}}}
+    },
+    {
+      "id": 6,
+      "title": "Códigos de respuesta HTTP",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum by (status_code) (http_requests_total)",
+        "legendFormat": "HTTP {{status_code}}"
+      }],
+      "options": {"pieType": "pie", "displayLabels": ["name", "percent"]}
+    },
+    {
+      "id": 7,
+      "title": "Latencia por percentil (p50, p90, p99)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"datasource": "Prometheus", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000", "legendFormat": "p50"},
+        {"datasource": "Prometheus", "expr": "histogram_quantile(0.90, sum by (le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000", "legendFormat": "p90"},
+        {"datasource": "Prometheus", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ms", "custom": {"lineWidth": 2}}}
+    }
+  ],
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "time": {"from": "now-1h", "to": "now"}
+}

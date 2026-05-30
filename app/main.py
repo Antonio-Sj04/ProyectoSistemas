@@ -12,87 +12,129 @@ from app.config import settings
 from app.database import engine, Base
 from app.routers import departamentos, equipos, asignaciones
 
-# -----------------------------------------------------------------------------
-# Crear todas las tablas en la BD (si no existen aún)
-# En producción se usa Alembic para migraciones controladas,
-# pero para desarrollo local esto es suficiente.
-# -----------------------------------------------------------------------------
 Base.metadata.create_all(bind=engine)
 
-# -----------------------------------------------------------------------------
-# Instancia principal de FastAPI con metadata para Swagger UI
-# Acceder a la documentación en: http://localhost:8000/docs
-# -----------------------------------------------------------------------------
+# Metadatos de los tags — aparecen como secciones con descripción en Swagger
+tags_metadata = [
+    {
+        "name": "Departamentos",
+        "description": "Gestión de los **departamentos** de la empresa. "
+                       "Cada equipo pertenece a un departamento.",
+    },
+    {
+        "name": "Equipos",
+        "description": "Catálogo completo de **equipos TI**: laptops, switches POE y servidores. "
+                       "Al cambiar el campo `estado`, el **trigger SQL** registra automáticamente "
+                       "el cambio en el historial de auditoría.",
+    },
+    {
+        "name": "Asignaciones",
+        "description": "Control de **asignaciones** de equipos a empleados. "
+                       "Registra responsable, fecha de asignación y devolución.",
+    },
+    {
+        "name": "Health",
+        "description": "Endpoints de salud usados por **Docker Swarm** y balanceadores de carga.",
+    },
+    {
+        "name": "Root",
+        "description": "Información general de la API.",
+    },
+]
+
 app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
+    title="Sistema de Inventario de Equipos TI",
+    version="1.0.0",
     description="""
 ## Sistema de Inventario de Equipos TI
 
-API REST para gestionar el inventario de equipos tecnológicos de la empresa.
+API REST para gestionar el inventario de equipos tecnológicos de una empresa.
+Desarrollada como **Proyecto Final de Sistemas Operativos II**.
 
-### Funcionalidades principales:
-* **Departamentos** — CRUD completo de departamentos
-* **Equipos** — Gestión de laptops, switches y servidores
-* **Asignaciones** — Control de qué empleado tiene qué equipo
-* **Historial** — Auditoría automática de cambios de estado (vía trigger SQL)
+---
 
-### Credenciales de acceso:
-No requiere autenticación en esta versión (agregar JWT en producción).
+### Infraestructura DevOps
+| Componente | Tecnología |
+|-----------|-----------|
+| Backend | Python 3.11 + FastAPI |
+| Base de Datos | PostgreSQL 15 con Trigger de auditoría |
+| Contenedores | Docker + Docker Swarm |
+| CI/CD | GitHub Actions + Trivy (DevSecOps) |
+| Nube | AWS EC2 + Terraform |
+| Monitoreo | Prometheus + Grafana |
+
+---
+
+### Funcionalidades
+- **CRUD completo** para Departamentos, Equipos y Asignaciones
+- **Trigger SQL `audit_cambio_estado`** — registra automáticamente cada cambio de estado en `historial_equipos`
+- **Health check** en `/health` para Docker Swarm
+- **Métricas** en `/metrics` para Prometheus
+
+---
+
+### Datos de prueba incluidos
+La base de datos incluye datos dummy con **5 departamentos** (Administración, Redes, etc.),
+**10 equipos** variados y asignaciones incluyendo a **Ana Lucia Pérez**.
     """,
+    openapi_tags=tags_metadata,
     contact={
         "name": "Antonio Samayoa",
         "url": "https://github.com/Antonio-Sj04/ProyectoSistemas",
+        "email": "antoniosamayoa5@gmail.com",
     },
     license_info={
         "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    swagger_ui_parameters={
+        "syntaxHighlight.theme": "monokai",   # Tema oscuro para el código
+        "tryItOutEnabled": True,               # Habilitar "Try it out" por defecto
+        "displayRequestDuration": True,        # Mostrar tiempo de cada request
+        "filter": True,                        # Barra de búsqueda de endpoints
+        "defaultModelsExpandDepth": 2,         # Expandir modelos automáticamente
     },
 )
 
-# -----------------------------------------------------------------------------
-# Middleware CORS: permite que frontends externos accedan a la API
-# En producción, reemplazar "*" con el dominio específico del frontend
-# -----------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # En prod: ["https://mi-frontend.com"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -----------------------------------------------------------------------------
-# Registro de routers — cada uno maneja un grupo de endpoints
-# -----------------------------------------------------------------------------
 app.include_router(departamentos.router)
 app.include_router(equipos.router)
 app.include_router(asignaciones.router)
 
-# -----------------------------------------------------------------------------
-# Métricas Prometheus — expone /metrics para que Prometheus las recolecte
-# El middleware instrumenta automáticamente latencia, conteo de requests, etc.
-# -----------------------------------------------------------------------------
 Instrumentator().instrument(app).expose(app)
 
-# -----------------------------------------------------------------------------
-# Endpoints raíz y health check
-# -----------------------------------------------------------------------------
 
-@app.get("/", tags=["Root"], summary="Bienvenida de la API")
+@app.get("/", tags=["Root"], summary="Informacion de la API")
 def root():
-    """Ruta raíz — confirma que la API está corriendo."""
+    """Ruta raíz — devuelve información general y enlaces útiles."""
     return {
-        "mensaje": "Bienvenido al Sistema de Inventario de Equipos TI",
-        "version": settings.APP_VERSION,
+        "nombre": "Sistema de Inventario de Equipos TI",
+        "version": "1.0.0",
+        "descripcion": "API REST para gestión de inventario TI desplegada en AWS con Docker Swarm",
         "documentacion": "/docs",
+        "redoc": "/redoc",
         "metricas": "/metrics",
+        "salud": "/health",
+        "repositorio": "https://github.com/Antonio-Sj04/ProyectoSistemas",
     }
 
 
 @app.get("/health", tags=["Health"], summary="Health check para Docker Swarm")
 def health_check():
     """
-    Endpoint de salud usado por Docker Swarm y load balancers.
-    Devuelve 200 OK cuando la API está lista para recibir tráfico.
+    Endpoint de salud usado por Docker Swarm y nginx.
+    Retorna `200 OK` cuando la API está lista para recibir tráfico.
+    Usado por el `healthcheck` definido en `production-stack.yml`.
     """
-    return {"status": "healthy", "service": "inventario-api"}
+    return {
+        "status": "healthy",
+        "service": "inventario-api",
+        "version": "1.0.0",
+    }

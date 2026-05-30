@@ -19,7 +19,14 @@ class DepartamentoBase(BaseModel):
 
 
 class DepartamentoCreate(DepartamentoBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "nombre": "Tecnología",
+                "ubicacion": "Edificio D, Piso 2"
+            }
+        }
+    )
 
 
 class DepartamentoUpdate(BaseModel):
@@ -48,7 +55,17 @@ class EquipoBase(BaseModel):
 
 
 class EquipoCreate(EquipoBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "nombre": "Dell Latitude 5550",
+                "tipo": "laptop",
+                "estado": "bodega",
+                "numero_serie": "DL5550-011-GT",
+                "departamento_id": 1
+            }
+        }
+    )
 
 
 class EquipoUpdate(BaseModel):
@@ -80,7 +97,17 @@ class AsignacionBase(BaseModel):
 
 
 class AsignacionCreate(AsignacionBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "equipo_id": 3,
+                "responsable": "María García",
+                "fecha_asignacion": "2026-05-30",
+                "fecha_devolucion": None,
+                "notas": "Asignado para trabajo remoto"
+            }
+        }
+    )
 
 
 class AsignacionUpdate(BaseModel):
