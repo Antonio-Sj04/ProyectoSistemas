@@ -8,14 +8,6 @@
 version: "3.9"
 
 # =============================================================================
-# SECRETS — valores sensibles inyectados de forma segura en el Swarm
-# Crear antes del deploy: echo "postgresql://..." | docker secret create db_url -
-# =============================================================================
-secrets:
-  db_url:
-    external: true    # Debe existir en el Swarm antes del deploy
-
-# =============================================================================
 # REDES
 # =============================================================================
 networks:
@@ -78,11 +70,9 @@ services:
     image: ${DOCKER_HUB_USER:-miusuario}/inventario-ti:latest
     networks:
       - red-produccion
-    secrets:
-      - db_url
     environment:
-      # Leer DATABASE_URL desde el secret de Swarm
-      DATABASE_URL_FILE: /run/secrets/db_url
+      # URL de conexión a la base de datos PostgreSQL dentro de la red overlay
+      DATABASE_URL: postgresql://${POSTGRES_USER:-inventario}:${POSTGRES_PASSWORD:-Password123}@db:5432/${POSTGRES_DB:-inventario_ti}
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -91,7 +81,7 @@ services:
       retries: 3
       start_period: 60s
     deploy:
-      replicas: 2
+      replicas: 1    # t3.micro tiene 1GB RAM — 1 réplica + swap es suficiente para el proyecto
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -99,8 +89,8 @@ services:
         window: 120s
       update_config:
         parallelism: 1          # Actualizar una réplica a la vez
-        delay: 10s              # Esperar 10s entre réplicas
-        order: start-first      # ZERO-DOWNTIME: arrancar nueva antes de detener la vieja
+        delay: 15s              # Esperar 15s entre réplicas
+        order: stop-first       # En t3.micro: detener antes de arrancar (ahorra RAM)
         failure_action: rollback
         monitor: 30s
       rollback_config:
