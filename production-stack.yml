@@ -115,6 +115,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-inventario_ti}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Script SQL inicial (tablas + trigger + datos dummy) — corre solo en el primer init
+      # Requiere copiar sql/schema.sql a /home/ec2-user/sql/ en el nodo manager
+      - /home/ec2-user/sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     networks:
       - red-produccion
     healthcheck:
