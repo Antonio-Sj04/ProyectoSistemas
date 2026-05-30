@@ -189,38 +189,26 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa \
               -o StrictHostKeyChecking=no \
-              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'REMOTE'
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+              "docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }} && \
+               docker service update \
+                 --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+                 --env-add DATABASE_URL=${{ secrets.DATABASE_URL }} \
+                 --update-parallelism 1 \
+                 --update-delay 15s \
+                 --update-order stop-first \
+                 inventario_api"
 
-            # Hacer pull de la nueva imagen
-            docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-            # Actualizar el servicio con la nueva imagen (zero-downtime rolling update)
-            # El update_config del stack ya garantiza order: start-first
-            docker service update \
-              --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-              --update-parallelism 1 \
-              --update-delay 10s \
-              --update-order start-first \
-              inventario_api
-
-            echo "Esperando que el deploy se estabilice..."
-            sleep 15
-
-            # Verificar el estado del servicio después del deploy
-            echo "=== Estado del servicio después del deploy ==="
-            docker service ps inventario_api --no-trunc
-
-            # Verificar que todas las réplicas están running
-            RUNNING=$(docker service ps inventario_api --filter "desired-state=running" --format "{{.CurrentState}}" | grep -c "Running" || true)
-            echo "Réplicas en estado Running: $RUNNING"
-
-            if [ "$RUNNING" -ge 1 ]; then
-              echo "✅ Deploy exitoso — $RUNNING réplica(s) activa(s)"
-            else
-              echo "❌ Deploy fallido — ninguna réplica en Running"
-              exit 1
-            fi
-          REMOTE
+      - name: Verificar deploy exitoso
+        run: |
+          sleep 20
+          ssh -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+              "RUNNING=\$(docker service ps inventario_api --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
+               echo 'Replicas running:' \$RUNNING && \
+               docker service ls --filter name=inventario_api && \
+               [ \"\$RUNNING\" -ge 1 ] && echo '✅ Deploy exitoso' || (echo '❌ Deploy fallido' && exit 1)"
 
       - name: Resumen del deploy
         if: always()
