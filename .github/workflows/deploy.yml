@@ -220,39 +220,64 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          # Agregar el host al known_hosts para evitar prompts interactivos
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          # Timeout 10s para no colgar el pipeline si el host no responde
+          ssh-keyscan -T 10 -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts || true
 
       # Conectarse al Manager del Swarm y actualizar la API y el Frontend
+      # Si los servicios no existen aún (primer deploy), hace docker stack deploy
       - name: Deploy rolling update en Swarm
+        timeout-minutes: 10
         run: |
           ssh -i ~/.ssh/id_rsa \
               -o StrictHostKeyChecking=no \
-              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-              "docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }} && \
-               docker service update \
-                 --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-                 --env-add DATABASE_URL=${{ secrets.DATABASE_URL }} \
-                 --update-parallelism 1 \
-                 --update-delay 15s \
-                 --update-order stop-first \
-                 inventario_api && \
-               docker pull ${{ env.IMAGE_FRONTEND }}:${{ github.sha }} && \
-               docker service update \
-                 --image ${{ env.IMAGE_FRONTEND }}:${{ github.sha }} \
-                 --update-parallelism 1 \
-                 --update-delay 10s \
-                 --update-order stop-first \
-                 inventario_frontend"
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=3 \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            set -e
+            SHA="${{ github.sha }}"
+            IMAGE_API="${{ env.IMAGE_NAME }}"
+            IMAGE_FE="${{ env.IMAGE_FRONTEND }}"
+            DB_URL="${{ secrets.DATABASE_URL }}"
+
+            echo "==> Pulling images..."
+            docker pull "${IMAGE_API}:${SHA}"
+            docker pull "${IMAGE_FE}:${SHA}"
+
+            # Si el servicio de API ya existe → rolling update; si no → primer stack deploy
+            if docker service inspect inventario_api > /dev/null 2>&1; then
+              echo "==> Updating existing services..."
+              docker service update \
+                --image "${IMAGE_API}:${SHA}" \
+                --env-add "DATABASE_URL=${DB_URL}" \
+                --update-parallelism 1 \
+                --update-delay 15s \
+                --update-order stop-first \
+                inventario_api
+              docker service update \
+                --image "${IMAGE_FE}:${SHA}" \
+                --update-parallelism 1 \
+                --update-delay 10s \
+                --update-order stop-first \
+                inventario_frontend
+            else
+              echo "==> First deploy — initializing stack..."
+              cd /home/ec2-user
+              docker stack deploy -c production-stack.yml inventario --with-registry-auth
+            fi
+            echo "==> Done."
+          ENDSSH
 
       - name: Verificar deploy exitoso
+        timeout-minutes: 3
         run: |
           sleep 20
           ssh -i ~/.ssh/id_rsa \
               -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 \
               ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-              "RUNNING_API=\$(docker service ps inventario_api --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
-               RUNNING_FE=\$(docker service ps inventario_frontend --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
+              "RUNNING_API=\$(docker service ps inventario_api --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || echo 0) && \
+               RUNNING_FE=\$(docker service ps inventario_frontend --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || echo 0) && \
                echo 'API replicas running:' \$RUNNING_API && \
                echo 'Frontend replicas running:' \$RUNNING_FE && \
                docker service ls --filter name=inventario && \
