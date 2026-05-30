@@ -29,7 +29,9 @@ on:
 # Variables de entorno disponibles en todos los jobs
 env:
   IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/inventario-ti
-  SERVICE_NAME: inventario_api    # Nombre del servicio en el Swarm stack
+  IMAGE_FRONTEND: ${{ secrets.DOCKER_USERNAME }}/inventario-ti-frontend
+  SERVICE_NAME: inventario_api          # Nombre del servicio API en el Swarm stack
+  SERVICE_FRONTEND: inventario_frontend # Nombre del servicio frontend en el Swarm stack
 
 # =============================================================================
 # JOB 1: TEST — Ejecutar pruebas unitarias
@@ -152,12 +154,49 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # -----------------------------------------------------------------------
+      # Frontend Streamlit: build, escaneo y push
+      # -----------------------------------------------------------------------
+      - name: Build de imagen Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Escaneo de seguridad Frontend con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.IMAGE_FRONTEND }}:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL"
+
+      - name: Push de imagen Frontend a Docker Hub
+        if: success()
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Resumen del build
         if: always()
         run: |
           echo "## Resultado del Build" >> $GITHUB_STEP_SUMMARY
-          echo "- **Imagen**: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tags**: latest, ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **API**: ${{ env.IMAGE_NAME }}:latest / ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: ${{ env.IMAGE_FRONTEND }}:latest / ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Autor**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
@@ -184,7 +223,7 @@ jobs:
           # Agregar el host al known_hosts para evitar prompts interactivos
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # Conectarse al Manager del Swarm y actualizar el servicio con rolling update
+      # Conectarse al Manager del Swarm y actualizar la API y el Frontend
       - name: Deploy rolling update en Swarm
         run: |
           ssh -i ~/.ssh/id_rsa \
@@ -197,7 +236,14 @@ jobs:
                  --update-parallelism 1 \
                  --update-delay 15s \
                  --update-order stop-first \
-                 inventario_api"
+                 inventario_api && \
+               docker pull ${{ env.IMAGE_FRONTEND }}:${{ github.sha }} && \
+               docker service update \
+                 --image ${{ env.IMAGE_FRONTEND }}:${{ github.sha }} \
+                 --update-parallelism 1 \
+                 --update-delay 10s \
+                 --update-order stop-first \
+                 inventario_frontend"
 
       - name: Verificar deploy exitoso
         run: |
@@ -205,18 +251,20 @@ jobs:
           ssh -i ~/.ssh/id_rsa \
               -o StrictHostKeyChecking=no \
               ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-              "RUNNING=\$(docker service ps inventario_api --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
-               echo 'Replicas running:' \$RUNNING && \
-               docker service ls --filter name=inventario_api && \
-               [ \"\$RUNNING\" -ge 1 ] && echo '✅ Deploy exitoso' || (echo '❌ Deploy fallido' && exit 1)"
+              "RUNNING_API=\$(docker service ps inventario_api --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
+               RUNNING_FE=\$(docker service ps inventario_frontend --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -c 'Running' || true) && \
+               echo 'API replicas running:' \$RUNNING_API && \
+               echo 'Frontend replicas running:' \$RUNNING_FE && \
+               docker service ls --filter name=inventario && \
+               [ \"\$RUNNING_API\" -ge 1 ] && [ \"\$RUNNING_FE\" -ge 1 ] && echo '✅ Deploy exitoso' || (echo '❌ Deploy fallido' && exit 1)"
 
       - name: Resumen del deploy
         if: always()
         run: |
           echo "## Resultado del Deploy" >> $GITHUB_STEP_SUMMARY
           echo "- **Servidor**: ${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Servicio**: ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Imagen deployada**: ${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **API**: ${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
       # Limpiar la llave SSH del runner (buena práctica de seguridad)
       - name: Limpiar clave SSH

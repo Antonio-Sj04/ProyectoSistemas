@@ -197,6 +197,15 @@ resource "aws_security_group" "swarm_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Streamlit Frontend — dashboard de inventario
+  ingress {
+    description = "Streamlit Frontend"
+    from_port   = 8501
+    to_port     = 8501
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Docker Swarm — puerto de gestión del cluster (solo entre nodos de la VPC)
   ingress {
     description = "Docker Swarm management"
