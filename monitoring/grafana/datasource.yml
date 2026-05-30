@@ -1,0 +1,18 @@
+# =============================================================================
+# datasource.yml — Provisioning automático de datasource en Grafana
+# Grafana carga este archivo al iniciar y configura Prometheus automáticamente.
+# Esto evita tener que configurar manualmente el datasource en la UI.
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090    # Nombre del servicio en la red overlay de Swarm
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"         # Debe coincidir con scrape_interval de prometheus.yml
+      httpMethod: POST

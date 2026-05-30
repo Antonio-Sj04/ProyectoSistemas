@@ -1,0 +1,66 @@
+# =============================================================================
+# .gitignore — Archivos excluidos del repositorio Git
+# =============================================================================
+
+# Variables de entorno con credenciales reales — NUNCA subir al repo
+.env
+*.env.local
+
+# Llaves SSH y certificados — datos sensibles
+*.pem
+*.key
+*.p12
+id_rsa
+id_ed25519
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Entorno virtual
+venv/
+.venv/
+env/
+ENV/
+
+# Pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Terraform — archivos de estado (pueden contener secretos)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfplan
+terraform.tfvars        # Si contiene valores reales
+
+# Docker
+.docker/
+
+# IDE y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini

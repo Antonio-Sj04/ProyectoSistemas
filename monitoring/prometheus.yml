@@ -1,0 +1,76 @@
+# =============================================================================
+# prometheus.yml — Configuración de recolección de métricas
+# Proyecto Final SO2 — Antonio Samayoa
+#
+# Prometheus hace "scraping" (consulta periódica) de los endpoints /metrics
+# de cada servicio y almacena los datos en series temporales.
+# =============================================================================
+
+global:
+  scrape_interval: 15s        # Frecuencia de recolección de métricas
+  evaluation_interval: 15s    # Frecuencia de evaluación de reglas de alerta
+  scrape_timeout: 10s
+
+  # Etiqueta global aplicada a todas las métricas recolectadas
+  external_labels:
+    monitor: "inventario-ti-monitor"
+    proyecto: "so2-final"
+
+# =============================================================================
+# JOBS DE SCRAPING — cada job define un grupo de targets a monitorear
+# =============================================================================
+scrape_configs:
+
+  # --------------------------------------------------------------------------
+  # JOB 1: Prometheus se monitorea a sí mismo
+  # --------------------------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          servicio: "prometheus"
+
+  # --------------------------------------------------------------------------
+  # JOB 2: API FastAPI
+  # El middleware prometheus-fastapi-instrumentator expone /metrics automáticamente.
+  # Métricas incluidas: latencia HTTP, conteo de requests, errores por código.
+  # En Swarm, "api" resuelve al VIP del servicio (load balancer interno).
+  # --------------------------------------------------------------------------
+  - job_name: "inventario-api"
+    metrics_path: "/metrics"
+    scrape_interval: 10s      # Más frecuente para la API
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          servicio: "fastapi-inventario"
+          entorno: "produccion"
+
+  # --------------------------------------------------------------------------
+  # JOB 3: Node Exporter — métricas del sistema operativo de los EC2
+  # Instalar en cada EC2: docker run -d --net=host prom/node-exporter
+  # Métricas: CPU, RAM, disco, red a nivel del host
+  # --------------------------------------------------------------------------
+  - job_name: "node-exporter-manager"
+    static_configs:
+      # Reemplazar con la IP privada real del Manager después del terraform apply
+      - targets: ["10.0.1.10:9100"]
+        labels:
+          instancia: "swarm-manager"
+          rol: "manager"
+
+  - job_name: "node-exporter-worker"
+    static_configs:
+      # Reemplazar con la IP privada real del Worker después del terraform apply
+      - targets: ["10.0.1.11:9100"]
+        labels:
+          instancia: "swarm-worker"
+          rol: "worker"
+
+  # --------------------------------------------------------------------------
+  # JOB 4: PostgreSQL exporter (opcional — si se instala postgres_exporter)
+  # --------------------------------------------------------------------------
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["db:5432"]
+        labels:
+          servicio: "postgresql"

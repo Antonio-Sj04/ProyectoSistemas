@@ -1,0 +1,38 @@
+# =============================================================================
+# requirements.txt — Dependencias del Sistema de Inventario TI
+# Proyecto Final SO2 — Antonio Samayoa
+# =============================================================================
+
+# Framework web asíncrono de alto rendimiento
+fastapi==0.115.5
+
+# Servidor ASGI con soporte completo (websockets, http2)
+uvicorn[standard]==0.32.1
+
+# Driver PostgreSQL para Python (binario, sin dependencias de compilación)
+psycopg2-binary==2.9.10
+
+# ORM para manejo de la base de datos
+SQLAlchemy==2.0.36
+
+# Migraciones de base de datos
+alembic==1.14.0
+
+# Carga de variables de entorno desde archivo .env
+python-dotenv==1.0.1
+
+# Validación de datos y serialización (v2 — más rápido)
+pydantic==2.10.3
+
+# Configuración tipada usando pydantic
+pydantic-settings==2.6.1
+
+# Cliente HTTP asíncrono para tests de integración
+httpx==0.28.1
+
+# Exposición de métricas Prometheus en la API
+prometheus-fastapi-instrumentator==7.0.0
+
+# Tests
+pytest==8.3.4
+pytest-asyncio==0.24.0
