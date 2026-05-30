@@ -33,7 +33,7 @@ LABEL version="1.0.0"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/install/bin:$PATH" \
-    PYTHONPATH="/install/lib/python3.11/site-packages:$PYTHONPATH"
+    PYTHONPATH="/install/lib/python3.11/site-packages"
 
 WORKDIR /app
 
