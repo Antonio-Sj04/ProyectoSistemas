@@ -148,7 +148,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # El prometheus.yml debe estar en /home/ec2-user/monitoring/ en el nodo manager
+      - /home/ec2-user/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -179,7 +180,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - /home/ec2-user/monitoring/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
     ports:
       - "3000:3000"
     networks:
@@ -195,35 +196,8 @@ services:
         condition: on-failure
 
 # =============================================================================
-# CONFIGS — Configuración de Nginx inline
+# CONFIGS — Config externa (crear con: docker config create nginx_config nginx.conf)
 # =============================================================================
 configs:
   nginx_config:
-    content: |
-      events {
-          worker_connections 1024;
-      }
-
-      http {
-          upstream api_backend {
-              # Docker Swarm resuelve "api" a todas las réplicas con round-robin
-              server api:8000;
-          }
-
-          server {
-              listen 80;
-
-              location / {
-                  proxy_pass         http://api_backend;
-                  proxy_set_header   Host              $host;
-                  proxy_set_header   X-Real-IP         $remote_addr;
-                  proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-                  proxy_connect_timeout 10s;
-                  proxy_read_timeout    60s;
-              }
-
-              location /health {
-                  proxy_pass http://api_backend/health;
-              }
-          }
-      }
+    external: true    # Creada manualmente antes del deploy con docker config create

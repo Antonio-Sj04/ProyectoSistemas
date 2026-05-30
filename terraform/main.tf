@@ -1,7 +1,7 @@
 # =============================================================================
 # terraform/main.tf — Infraestructura AWS para el cluster Docker Swarm
 # Proyecto Final SO2 — Antonio Samayoa
-# Región: us-east-1 | Instancias: 2x EC2 t2.micro (capa gratuita)
+# Región: us-east-2 (Ohio) | Instancias: 2x EC2 t2.micro (capa gratuita)
 #
 # COMANDOS:
 #   terraform init        → descarga proveedores
@@ -35,7 +35,7 @@ provider "aws" {
 variable "aws_region" {
   description = "Región de AWS donde se desplegará la infraestructura"
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "proyecto" {
@@ -105,7 +105,7 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_subnet" "publica" {
   vpc_id                  = aws_vpc.principal.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  availability_zone       = "${var.aws_region}a"   # us-east-2a (Ohio)
   map_public_ip_on_launch = true    # Asigna IP pública automáticamente a las EC2
 
   tags = {
@@ -283,7 +283,7 @@ locals {
 # EC2 Manager — nodo principal del Swarm (coordina los workers)
 resource "aws_instance" "swarm_manager" {
   ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t2.micro"            # Capa gratuita de AWS
+  instance_type          = "t3.micro"            # Capa gratuita en us-east-2
   subnet_id              = aws_subnet.publica.id
   vpc_security_group_ids = [aws_security_group.swarm_sg.id]
   key_name               = var.key_pair_name
@@ -291,7 +291,7 @@ resource "aws_instance" "swarm_manager" {
 
   # Volumen raíz de 20GB (suficiente para Docker images)
   root_block_device {
-    volume_size           = 20
+    volume_size           = 30
     volume_type           = "gp3"
     delete_on_termination = true
   }
@@ -303,58 +303,25 @@ resource "aws_instance" "swarm_manager" {
   }
 }
 
-# EC2 Worker — nodo secundario que ejecuta contenedores
-resource "aws_instance" "swarm_worker" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t2.micro"
-  subnet_id              = aws_subnet.publica.id
-  vpc_security_group_ids = [aws_security_group.swarm_sg.id]
-  key_name               = var.key_pair_name
-  user_data              = local.user_data_script
-
-  root_block_device {
-    volume_size           = 20
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }
-
-  tags = {
-    Name     = "${var.proyecto}-swarm-worker"
-    Rol      = "worker"
-    Proyecto = var.proyecto
-  }
-}
+# NOTA: Para el proyecto se usa un nodo único (Manager-Worker combinado).
+# Docker Swarm permite que el Manager también ejecute servicios como worker.
+# Esto es suficiente para demostrar orquestación, CI/CD y monitoreo.
 
 # =============================================================================
 # OUTPUTS — IPs mostradas al terminar el terraform apply
 # =============================================================================
 
 output "ip_publica_manager" {
-  description = "IP pública del Swarm Manager — usa esta para SSH y para el GitHub Secret EC2_HOST"
+  description = "IP pública del nodo Swarm — usa esta para SSH y para el GitHub Secret EC2_HOST"
   value       = aws_instance.swarm_manager.public_ip
 }
 
-output "ip_publica_worker" {
-  description = "IP pública del Swarm Worker"
-  value       = aws_instance.swarm_worker.public_ip
-}
-
 output "ip_privada_manager" {
-  description = "IP privada del Manager (para comunicación interna del Swarm)"
+  description = "IP privada del nodo (para inicializar el Swarm)"
   value       = aws_instance.swarm_manager.private_ip
 }
 
-output "ip_privada_worker" {
-  description = "IP privada del Worker (para el comando docker swarm join)"
-  value       = aws_instance.swarm_worker.private_ip
-}
-
-output "comando_ssh_manager" {
-  description = "Comando listo para conectarte por SSH al Manager"
+output "comando_ssh" {
+  description = "Comando SSH para conectarte al nodo"
   value       = "ssh -i ${var.key_pair_name}.pem ec2-user@${aws_instance.swarm_manager.public_ip}"
-}
-
-output "comando_ssh_worker" {
-  description = "Comando listo para conectarte por SSH al Worker"
-  value       = "ssh -i ${var.key_pair_name}.pem ec2-user@${aws_instance.swarm_worker.public_ip}"
 }
