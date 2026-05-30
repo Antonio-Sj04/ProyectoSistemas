@@ -187,7 +187,7 @@ graph TB
 |-------------|---------|-----|
 | Python | 3.11+ | Runtime de la API |
 | Docker Desktop | 4.x+ | Contenedores locales |
-| Terraform | 1.5+ | Infraestructura AWS |
+| Terraform | 1.5+ | Infraestructura AWS (instancias t3.micro) |
 | AWS CLI | 2.x | Configurar credenciales |
 | Git | 2.x | Control de versiones |
 
@@ -441,3 +441,5 @@ SELECT * FROM historial_equipos WHERE equipo_id = 1;
 | Grafana | `http://IP_MANAGER:3000` | admin / admin123 |
 | Prometheus | `http://IP_MANAGER:9090` | Sin autenticación |
 | API Metrics | `http://IP_MANAGER/metrics` | Sin autenticación |
+#   P i p e l i n e   t e s t   0 5 / 2 9 / 2 0 2 6   2 2 : 3 6 : 0 1  
+ 
