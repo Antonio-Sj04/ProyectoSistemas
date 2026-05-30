@@ -6,6 +6,9 @@
 .env
 *.env.local
 
+# Documento de handoff con inventario de credenciales — NO versionar
+handoff.md
+
 # Llaves SSH y certificados — datos sensibles
 *.pem
 *.key
