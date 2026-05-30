@@ -67,6 +67,27 @@ services:
     volumes:
       - ./app:/app/app
 
+  # ---------------------------------------------------------------------------
+  # Servicio: Frontend Streamlit
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: inventario_frontend
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - red-inventario
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app    # Hot-reload: cambios en app.py se reflejan al instante
+
 # -----------------------------------------------------------------------------
 # Redes
 # -----------------------------------------------------------------------------

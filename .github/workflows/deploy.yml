@@ -223,6 +223,20 @@ jobs:
           # Timeout 10s para no colgar el pipeline si el host no responde
           ssh-keyscan -T 10 -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts || true
 
+      # Copiar archivos de configuración al servidor (necesario para primer deploy)
+      - name: Copiar archivos de configuración al servidor
+        run: |
+          scp -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 \
+              production-stack.yml \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/production-stack.yml
+          scp -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 \
+              nginx/nginx.conf \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+
       # Conectarse al Manager del Swarm y actualizar la API y el Frontend
       # Si los servicios no existen aún (primer deploy), hace docker stack deploy
       - name: Deploy rolling update en Swarm
@@ -263,6 +277,9 @@ jobs:
             else
               echo "==> First deploy — initializing stack..."
               cd /home/ec2-user
+              # Crear el Docker config de nginx si no existe
+              docker config ls | grep -q nginx_config || \
+                docker config create nginx_config /home/ec2-user/nginx.conf
               docker stack deploy -c production-stack.yml inventario --with-registry-auth
             fi
             echo "==> Done."
